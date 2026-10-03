@@ -7,3 +7,4 @@ auth.h
 sdkconfig.ci
 sdkconfig.old
 
+managed_components/

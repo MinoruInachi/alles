@@ -24,6 +24,22 @@
 
 #define MAX_TASKS 8
 
+#if CONFIG_IDF_TARGET_ESP32S3
+// M5Stack Atom VoiceS3R: ES8311 codec + NS4150B amp, one user button
+// Pins follow M5Unified (board_M5AtomVoiceS3R); the pin table on the M5 docs page doesn't match the hardware.
+#define ATOM_VOICES3R
+#define ATOM_BUTTON_USER 41
+#define ATOM_I2S_MCLK 11
+#define ATOM_I2S_BCLK 17
+#define ATOM_I2S_LRCLK 3
+#define ATOM_I2S_DOUT 48
+#define ATOM_I2S_DIN 4
+#define ATOM_I2C_SDA 45
+#define ATOM_I2C_SCL 0
+#define ATOM_PA_EN 18
+#define ESP_INTR_FLAG_DEFAULT 0
+esp_err_t codec_init();
+#else
 // Pins & buttons
 #define BUTTON_WAKEUP 34
 #define BUTTON_MINUS 17
@@ -42,10 +58,11 @@
 #define CPU_MONITOR_0 13
 #define CPU_MONITOR_1 12
 #define CPU_MONITOR_2 15
+#endif
 
 void wifi_reconfigure();
 extern esp_err_t buttons_init();
-void esp_show_debug(uint8_t type);
+void esp_show_debug();
 void delay_ms(uint32_t ms);
 
 #endif
@@ -66,6 +83,7 @@ void delay_ms(uint32_t ms);
 #define ALLES_BOARD_V1 1
 #define ALLES_BOARD_V2 2
 #define ALLES_DESKTOP 3
+#define ALLES_ATOM_VOICES3R 4
 #define BATTERY_STATE_CHARGING 0x01
 #define BATTERY_STATE_CHARGED 0x02
 #define BATTERY_STATE_DISCHARGING 0x04
@@ -75,6 +93,7 @@ void delay_ms(uint32_t ms);
 #define BATTERY_VOLTAGE_1 0x80
 
 #define ALLES_MAX_DRIFT_MS 20000
+#define ALLES_MAX_VOLUME 10.0f
 
 
 // Status mask 
@@ -90,6 +109,9 @@ extern void debleep();
 extern void upgrade_tone();
 extern void wifi_tone();
 extern void scale(uint8_t wave);
+extern void alles_increase_volume();
+extern void alles_decrease_volume();
+extern void alles_cycle_volume();
 
 extern uint8_t alive;
 extern int16_t client_id;

@@ -11,11 +11,53 @@
 #include "alles.h"
 
 
-xQueueHandle gpio_evt_queue = NULL;
+QueueHandle_t gpio_evt_queue = NULL;
 extern uint8_t status;
 extern uint8_t board_level;
 
 
+#ifdef ATOM_VOICES3R
+// The Atom VoiceS3R has a single user button (active low).
+// Short press cycles the volume, holding it for ATOM_LONG_PRESS_MS resets the wifi config.
+#define ATOM_BUTTON_POLL_MS 20
+#define ATOM_LONG_PRESS_MS 3000
+
+static void atom_button_task(void* arg) {
+    uint32_t held_ms = 0;
+    while(true) {
+        delay_ms(ATOM_BUTTON_POLL_MS);
+        if(gpio_get_level(ATOM_BUTTON_USER) == 0) {
+            held_ms += ATOM_BUTTON_POLL_MS;
+            if(held_ms == ATOM_LONG_PRESS_MS) {
+                printf("button held\n");
+                wifi_reconfigure();
+            }
+        } else {
+            if(held_ms > 0 && held_ms < ATOM_LONG_PRESS_MS) {
+                printf("button pushed\n");
+                alles_cycle_volume();
+            }
+            held_ms = 0;
+        }
+    }
+}
+
+esp_err_t buttons_init() {
+    const gpio_config_t in_conf = {
+        .intr_type = GPIO_INTR_DISABLE,
+        .mode = GPIO_MODE_INPUT,
+        .pin_bit_mask = (1ULL << ATOM_BUTTON_USER),
+        .pull_down_en = 0,
+        .pull_up_en = 1,
+    };
+    esp_err_t ret = gpio_config(&in_conf);
+    if(ret != ESP_OK)
+        return ret;
+    if(xTaskCreate(atom_button_task, "gpio_task", 4096, NULL, 10, NULL) != pdPASS)
+        return ESP_ERR_NO_MEM;
+    return ESP_OK;
+}
+#else
 // Called whenever a button press triggers a GPIO interrupt
 static void IRAM_ATTR gpio_isr_handler(void* arg) {
     // Note: A simple form of deboucing is implemented by setting the size of
@@ -40,7 +82,7 @@ static void gpio_task(void* arg) {
                 break;
             case BUTTON_MINUS: 
                 printf("minus pushed\n");
-                amy_decrease_volume();
+                alles_decrease_volume();
                 break;
             case BUTTON_WIFI: 
                 // WIFI config mode
@@ -52,7 +94,7 @@ static void gpio_task(void* arg) {
                 if(!(status & WIFI_MANAGER_OK)) { 
                     status |= UPDATE;
                 } else {
-                    amy_increase_volume();
+                    alles_increase_volume();
                 }
                 break;
             }
@@ -119,3 +161,4 @@ esp_err_t buttons_init() {
 
     return ESP_OK;
 }
+#endif

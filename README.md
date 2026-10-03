@@ -207,6 +207,18 @@ Alles is completely open source, and can be a fun platform to adapt beyond its c
 
 You can upgrade the firmware or write your own using the USB connection. [See the guide on flashing a hardware Alles speaker](https://github.com/shorepine/alles/tree/main/alles-flashing.md) (either DIY or one of ours). 
 
+## M5Stack Atom VoiceS3R
+
+Alles also runs on the [M5Stack Atom VoiceS3R](https://docs.m5stack.com/en/core/Atom_VoiceS3R) (ESP32-S3, ES8311 codec, 1W speaker). Build and flash it with ESP-IDF 5.3 or later:
+
+```bash
+$ idf.py set-target esp32s3   # only needed once, picks up sdkconfig.defaults
+$ idf.py build
+$ idf.py -p /dev/cu.usbmodemXXXX flash monitor
+```
+
+The Atom has one button: a short press steps the volume up (wrapping back to the quietest level), and holding it for 3 seconds clears the saved WiFi and restarts into the `alles-synth-X` setup network. Output is mixed down to mono for its single speaker. It has no battery or power switch, so it stops the WiFi chime after 2 minutes instead of turning off, and the OTA upgrade (which fetches the ESP32 image) is not used.
+
 
 ## THANK YOU TO
 

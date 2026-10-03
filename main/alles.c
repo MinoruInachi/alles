@@ -9,6 +9,10 @@ int64_t clocks[255];
 int64_t ping_times[255];
 uint8_t alive = 1;
 
+// The current message for the parse task, set by the multicast listener
+char *message_start_pointer;
+int16_t message_length;
+
 int32_t computed_delta = 0 ; // can be negative no prob, but usually host is larger # than client
 uint8_t computed_delta_set = 0; // have we set a delta yet?
 
@@ -93,89 +97,126 @@ void ping(int64_t sysclock) {
 }
 
 
+void alles_increase_volume() {
+    amy_global.volume[AMY_DEFAULT_BUS] += 0.5f;
+    if(amy_global.volume[AMY_DEFAULT_BUS] > ALLES_MAX_VOLUME) amy_global.volume[AMY_DEFAULT_BUS] = ALLES_MAX_VOLUME;
+}
+
+void alles_decrease_volume() {
+    amy_global.volume[AMY_DEFAULT_BUS] -= 0.5f;
+    if(amy_global.volume[AMY_DEFAULT_BUS] < 0) amy_global.volume[AMY_DEFAULT_BUS] = 0;
+}
+
+// For devices with a single button: step up through a few levels, then wrap around to the quietest
+void alles_cycle_volume() {
+    const float levels[] = { 0.5f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f };
+    const int num_levels = sizeof(levels) / sizeof(levels[0]);
+    float volume = levels[0];
+    for(int i=0;i<num_levels;i++) {
+        if(levels[i] > amy_global.volume[AMY_DEFAULT_BUS] + 0.01f) { volume = levels[i]; break; }
+    }
+    amy_global.volume[AMY_DEFAULT_BUS] = volume;
+    printf("volume %.1f\n", volume);
+}
+
+
 void alles_parse_message(char *message, uint16_t length) {
     uint8_t mode = 0;
     int16_t client = -1;
-    int64_t sync = -1;
+    int64_t sync = 0;
+    uint8_t has_sync = 0;
     int8_t sync_index = -1;
+    int64_t time = 0;
+    uint8_t has_time = 0;  // the host clock can be negative, so track presence separately
     uint8_t ipv4 = 0;
     uint16_t start = 0;
     uint16_t c = 0;
+    uint8_t prev_is_cmd = 0;
 
     uint32_t sysclock = amy_sysclock();
+    uint8_t sync_response = (message[0] == '_');
 
-
-    // Parse the AMY stuff out of the message first
-    struct event e = amy_parse_message(message);
-    uint8_t sync_response = 0;
-
-
-
-    // Then pull out any alles-specific modes in this message 
-    //fprintf(stderr, "alles messsage %s\n", message);
+    // Pull out the alles-specific params first. AMY ignores g, t, r and U.
+    // A letter straight after a command letter is a sub-command (e.g. "it" in AMY's synth layer), not a mode.
     while(c < length+1) {
         uint8_t b = message[c];
-        if(b == '_' && c==0) sync_response = 1;
-        if( ((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')) || b == 0) {  // new mode or end
-            if(mode=='g') client = atoi(message + start); 
+        uint8_t is_alpha = ((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z'));
+        if((is_alpha && !prev_is_cmd) || b == 0) {  // new mode or end
+            if(mode=='g') client = atoi(message + start);
             if(mode=='i') sync_index = atoi(message + start);
+            if(mode=='t') { time = atoll(message + start); has_time = 1; }
             if(sync_response) if(mode=='r') ipv4=atoi(message + start);
-            if(mode=='U') sync = atol(message + start); 
+            if(mode=='U') { sync = atoll(message + start); has_sync = 1; }
             mode = b;
             start = c + 1;
-        } 
+            prev_is_cmd = 1;
+        } else {
+            prev_is_cmd = 0;
+        }
         c++;
     }
     if(sync_response) {
         // If this is a sync response, let's update our local map of who is booted
         //printf("got sync response client %d ipv4 %d sync %lld\n", client, ipv4, sync);
         update_map(client, ipv4, sync);
-        length = 0; // don't need to do the rest
-    } else {
-        // AMY has time always set now.
-        // Latency is already added by AMY as well.
-        // the way this worked we keep a delta of e.time in (already latency added) and our sysclock 
-        // if e.time - delta is > max drift, recompute it !
-
-        int32_t delta = e.time - (sysclock+amy_global.latency_ms); 
-        if(!computed_delta_set || abs(delta - computed_delta) > ALLES_MAX_DRIFT_MS) {
-            computed_delta = delta;
-            fprintf(stderr,"setting computed delta to %"PRIi32 " (e.time is %"PRIu32 " sysclock %"PRIu32 ") max_drift_ms %"PRIu32 " latency %"PRIu16 "\n", 
-                    computed_delta, e.time, sysclock, (uint32_t)ALLES_MAX_DRIFT_MS, amy_global.latency_ms);
-            computed_delta_set = 1;
-        }  
-        // Adjust our time with computed_delta
-        e.time = e.time - computed_delta;
-
+        return;
     }
-    // Only do this if we got some data
-    if(length >0) {
-        // TODO -- not that it matters, but the below could probably be one or two lines long instead
+    if(length == 0) return;
+    if(has_sync && sync_index >= 0) {
         // Don't add sync messages to the event queue
-        if(sync >= 0 && sync_index >= 0) {
-            handle_sync(sync, sync_index);
-        } else {
-            // Assume it's for me
-            uint8_t for_me = 1;
-            // But wait, they specified, so don't assume
-            if(client >= 0) {
-                for_me = 0;
-                if(client <= 255) {
-                    // If they gave an individual client ID check that it exists
-                    if(alive>0) { // alive may get to 0 in a bad situation
-                        if(client >= alive) {
-                            client = client % alive;
-                        } 
-                    }
-                }
-                // It's actually precisely for me
-                if(client == client_id) for_me = 1;
-                if(client > 255) {
-                    // It's a group message, see if i'm in the group
-                    if(client_id % (client-255) == 0) for_me = 1;
+        handle_sync(sync, sync_index);
+        return;
+    }
+
+    // Assume it's for me
+    uint8_t for_me = 1;
+    // But wait, they specified, so don't assume
+    if(client >= 0) {
+        for_me = 0;
+        if(client <= 255) {
+            // If they gave an individual client ID check that it exists
+            if(alive>0) { // alive may get to 0 in a bad situation
+                if(client >= alive) {
+                    client = client % alive;
                 }
             }
-            if(for_me) amy_add_event(e);
+        }
+        // It's actually precisely for me
+        if(client == client_id) for_me = 1;
+        if(client > 255) {
+            // It's a group message, see if i'm in the group
+            if(client_id % (client-255) == 0) for_me = 1;
         }
     }
+    if(!for_me) return;
+
+    // The host sends its own clock as t. We keep a delta between that and our sysclock,
+    // and recompute it if it drifts more than max drift. AMY adds latency_ms in amy_add_event.
+    uint32_t event_time = 0;
+    if(has_time) {
+        int32_t delta = (int32_t)(time - sysclock);
+        if(!computed_delta_set || abs(delta - computed_delta) > ALLES_MAX_DRIFT_MS) {
+            computed_delta = delta;
+            fprintf(stderr,"setting computed delta to %"PRIi32 " (time is %lld sysclock %"PRIu32 ") max_drift_ms %"PRIu32 " latency %"PRIi16 "\n",
+                    computed_delta, time, sysclock, (uint32_t)ALLES_MAX_DRIFT_MS, amy_global.latency_ms);
+            computed_delta_set = 1;
+        }
+        event_time = (uint32_t)(time - computed_delta);
+    }
+
+    if(message[0] == 'H') {
+        // Sequencer (ticks) messages are scheduled by AMY's sequencer, not by time
+        handle_ticks_message(message);
+        return;
+    }
+    amy_event e;
+    size_t pos = 0;
+    do {
+        amy_clear_event(&e);
+        pos = yield_event_from_message(message, &e, pos);
+        if(pos > 0) {
+            if(has_time) e.time = event_time;
+            amy_add_event(&e);
+        }
+    } while(pos > 0);
 }

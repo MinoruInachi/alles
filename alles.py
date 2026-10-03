@@ -11,13 +11,14 @@ def transmit(message, retries=1):
         get_sock().sendto(message.encode('ascii'), get_multicast_group())
 
 def alles_send(message, retries=1):
+    # AMY's wire protocol no longer carries a time, so prefix the host clock (t) for the synths to schedule against.
+    # Sequencer (H) messages are scheduled by ticks instead.
+    if not message.startswith('H'):
+        message = 't%d' % amy.millis() + message
     transmit(message,retries=retries)
 
 # We override AMY's send function to send out to the mesh instead of locally
 amy.override_send = alles_send
-
-# Explicitly send time arg to AMY using amy.millis() when using Alles.
-amy.insert_time = amy.millis
 
 
 

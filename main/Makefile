@@ -4,17 +4,24 @@ AMY = ../amy/src
 TARGET = alles
 LIBS = -lpthread -lm 
 
-# on macOS, need to link to AudioUnit, CoreAudio, and CoreFoundation
-ifeq ($(shell uname -s), Darwin)
-LIBS += -framework AudioUnit -framework CoreAudio -framework CoreFoundation
-endif
-
 CC = gcc
 CFLAGS = -g -Wall -Wno-strict-aliasing -I$(AMY) -I.
 
-OBJECTS = $(patsubst %.c, %.o,  multicast_desktop.c alles_desktop.c alles.c sounds.c $(AMY)/algorithms.c $(AMY)/delay.c \
-	$(AMY)/amy.c $(AMY)/envelope.c $(AMY)/filters.c $(AMY)/oscillators.c $(AMY)/pcm.c $(AMY)/partials.c $(AMY)/libminiaudio-audio.c \
-	$(AMY)/log2_exp2.c $(AMY)/custom.c $(AMY)/patches.c $(AMY)/transfer.c)
+SOURCES = multicast_desktop.c alles_desktop.c alles.c sounds.c $(AMY)/algorithms.c $(AMY)/amy.c $(AMY)/envelope.c \
+	$(AMY)/parse.c $(AMY)/filters.c $(AMY)/oscillators.c $(AMY)/pcm.c $(AMY)/interp_partials.c \
+	$(AMY)/custom.c $(AMY)/delay.c $(AMY)/log2_exp2.c $(AMY)/patches.c $(AMY)/transfer.c $(AMY)/sequencer.c \
+	$(AMY)/libminiaudio-audio.c $(AMY)/instrument.c $(AMY)/amy_midi.c $(AMY)/api.c $(AMY)/midi_mappings.c \
+	$(AMY)/cv_trigger.c
+
+# on macOS, need to link to AudioUnit, CoreAudio, CoreFoundation and CoreMIDI, and AMY's MIDI layer is Objective-C
+ifeq ($(shell uname -s), Darwin)
+CC = clang
+CFLAGS += -DMACOS
+LIBS += -framework AudioUnit -framework CoreAudio -framework CoreFoundation -framework CoreMIDI -framework Cocoa
+SOURCES += $(AMY)/macos_midi.m
+endif
+
+OBJECTS = $(patsubst %.m, %.o, $(patsubst %.c, %.o, $(SOURCES)))
 HEADERS = alles.h $(wildcard amy/*.h)
 
 UNAME_S := $(shell uname -s)
@@ -51,5 +58,5 @@ $(TARGET): $(OBJECTS) check-and-reinit-submodules
 
 clean:
 	-rm -f *.o
-	-rm -f amy/*.o
+	-rm -f $(AMY)/*.o
 	-rm -f $(TARGET)

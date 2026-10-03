@@ -9,12 +9,6 @@ uint8_t board_level = ALLES_DESKTOP;
 uint8_t status = RUNNING;
 uint8_t debug_on = 0;
 
-// AMY synth states
-extern struct state amy_global;
-extern uint32_t event_counter;
-extern uint32_t message_counter;
-extern int16_t amy_playback_device_id;
-
 uint8_t battery_mask = 0;
 
 extern uint8_t ipv4_quartet;
@@ -27,9 +21,12 @@ char *local_ip, *raw_file;
 
 int main(int argc, char ** argv) {
     sync_init();
-    amy_start(1,0,1,0);
-    amy_reset_oscs();
-    amy_global.latency_ms = ALLES_LATENCY_MS;
+    amy_config_t amy_config = amy_default_config();
+    amy_config.features.reverb = 0;
+    amy_config.features.echo = 0;
+    amy_config.features.chorus = 1;
+    amy_config.max_oscs = 120;
+    amy_config.audio = AMY_AUDIO_IS_MINIAUDIO;
 
     // For now, indicate ip address via commandline
     local_ip = (char*)malloc(sizeof(char)*1025);
@@ -48,7 +45,7 @@ int main(int argc, char ** argv) {
                 strcpy(raw_file, optarg);
                 break; 
             case 'd': 
-                amy_playback_device_id = atoi(optarg);
+                amy_config.playback_device_id = atoi(optarg);
                 break;
             case 'o': 
                 quartet_offset = atoi(optarg);
@@ -73,7 +70,9 @@ int main(int argc, char ** argv) {
                 break; 
         } 
     }
-    amy_live_start();
+    amy_start(amy_config);
+    amy_reset_oscs();
+    amy_global.latency_ms = ALLES_LATENCY_MS;
     create_multicast_ipv4_socket();
     pthread_t thread_id;
     pthread_create(&thread_id, NULL, mcast_listen_task, NULL);
