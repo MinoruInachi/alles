@@ -19,6 +19,7 @@ set(ALLES_SRCS
 	${AMY_SRC_DIR}/interp_partials.c
 	${AMY_SRC_DIR}/log2_exp2.c
 	${AMY_SRC_DIR}/midi_mappings.c
+	${AMY_SRC_DIR}/note_output.c
 	${AMY_SRC_DIR}/oscillators.c
 	${AMY_SRC_DIR}/parse.c
 	${AMY_SRC_DIR}/patches.c

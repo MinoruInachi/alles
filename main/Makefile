@@ -11,7 +11,7 @@ SOURCES = multicast_desktop.c alles_desktop.c alles.c sounds.c $(AMY)/algorithms
 	$(AMY)/parse.c $(AMY)/filters.c $(AMY)/oscillators.c $(AMY)/pcm.c $(AMY)/interp_partials.c \
 	$(AMY)/custom.c $(AMY)/delay.c $(AMY)/log2_exp2.c $(AMY)/patches.c $(AMY)/transfer.c $(AMY)/sequencer.c \
 	$(AMY)/libminiaudio-audio.c $(AMY)/instrument.c $(AMY)/amy_midi.c $(AMY)/api.c $(AMY)/midi_mappings.c \
-	$(AMY)/cv_trigger.c
+	$(AMY)/cv_trigger.c $(AMY)/note_output.c
 
 # on macOS, need to link to AudioUnit, CoreAudio, CoreFoundation and CoreMIDI, and AMY's MIDI layer is Objective-C
 ifeq ($(shell uname -s), Darwin)
