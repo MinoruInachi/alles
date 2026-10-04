@@ -1,0 +1,65 @@
+# Builds the Atom VoiceS3R firmware on every push to the port's branch and publishes it
+# as the "rolling" pre-release, replacing the previous one.
+name: Rolling release
+
+on:
+  push:
+    branches: [dev_AtomVoiceS3R]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rolling-release
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build firmware
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5.4
+          target: esp32s3
+          command: >-
+            idf.py build &&
+            cd build &&
+            esptool.py --chip esp32s3 merge_bin -o alles-atom-voices3r.bin @flash_args
+
+      - name: Collect files
+        run: |
+          mkdir release
+          cp build/alles-atom-voices3r.bin release/
+          cp build/alles.bin build/bootloader/bootloader.bin build/partition_table/partition-table.bin \
+             build/ota_data_initial.bin release/
+          # The release is flat, so drop the folders from the paths in flash_args
+          sed 's#[^ ]*/##' build/flash_args > release/flash_args
+
+      - name: Publish rolling release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > notes.md <<EOF
+          Firmware for the M5Stack Atom VoiceS3R, built from ${GITHUB_SHA::7} on \`${GITHUB_REF_NAME}\`.
+          This release is replaced on every push.
+
+          Flash the single image at offset 0x0 (hold the reset button until the LED turns green to enter download mode):
+
+          \`\`\`
+          esptool.py --chip esp32s3 write_flash 0x0 alles-atom-voices3r.bin
+          \`\`\`
+
+          The separate images and \`flash_args\` are included for flashing with \`esptool.py write_flash @flash_args\` from the folder they are in.
+          EOF
+          gh release delete rolling --cleanup-tag --yes || true
+          gh release create rolling release/* \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "Atom VoiceS3R rolling build (${GITHUB_SHA::7})" \
+            --notes-file notes.md
