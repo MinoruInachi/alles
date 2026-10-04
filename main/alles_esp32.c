@@ -247,13 +247,15 @@ uint8_t battery_level_bits(float voltage) {
 }
 
 #ifdef ATOM_VOICES3R
-// Below this we assume there's no battery base, and G8 is just floating
+// Outside this range there's no battery: below it there's no base and G8 is floating, above it the base's
+// power switch is off and G8 isn't seeing the battery
 #define ATOM_BATTERY_MIN_MV 2500
+#define ATOM_BATTERY_MAX_MV 4500
 
 // The battery base has no charge status line, so only the level is reported
 void atom_battery_monitor() {
     int mv = atom_battery_read_mv();
-    battery_mask = (mv >= ATOM_BATTERY_MIN_MV) ? battery_level_bits(mv/1000.0) : 0;
+    battery_mask = (mv >= ATOM_BATTERY_MIN_MV && mv <= ATOM_BATTERY_MAX_MV) ? battery_level_bits(mv/1000.0) : 0;
 }
 #else
 void power_monitor() {
