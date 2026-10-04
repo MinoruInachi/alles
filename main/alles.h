@@ -37,8 +37,11 @@
 #define ATOM_I2C_SDA 45
 #define ATOM_I2C_SCL 0
 #define ATOM_PA_EN 18
+#define ATOM_BATTERY_ADC 8  // Atomic Battery Base
 #define ESP_INTR_FLAG_DEFAULT 0
 esp_err_t codec_init();
+esp_err_t atom_battery_init();
+int atom_battery_read_mv();
 #else
 // Pins & buttons
 #define BUTTON_WAKEUP 34

@@ -29,7 +29,7 @@ set(ALLES_SRCS
 
 if(IDF_TARGET STREQUAL "esp32s3")
 	# M5Stack Atom VoiceS3R
-	list(APPEND ALLES_SRCS codec_es8311.c)
+	list(APPEND ALLES_SRCS codec_es8311.c atom_battery.c)
 else()
 	list(APPEND ALLES_SRCS power.c)
 endif()

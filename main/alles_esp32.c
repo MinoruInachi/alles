@@ -237,7 +237,25 @@ void firmware_upgrade( void * pvParameters) {
     esp_restart();
 }
 
-#ifndef ATOM_VOICES3R
+// Battery level bits for the sync response, from the battery voltage
+uint8_t battery_level_bits(float voltage) {
+    if(voltage > 3.95) return BATTERY_VOLTAGE_4;
+    if(voltage > 3.80) return BATTERY_VOLTAGE_3;
+    if(voltage > 3.60) return BATTERY_VOLTAGE_2;
+    if(voltage > 3.30) return BATTERY_VOLTAGE_1;
+    return 0;
+}
+
+#ifdef ATOM_VOICES3R
+// Below this we assume there's no battery base, and G8 is just floating
+#define ATOM_BATTERY_MIN_MV 2500
+
+// The battery base has no charge status line, so only the level is reported
+void atom_battery_monitor() {
+    int mv = atom_battery_read_mv();
+    battery_mask = (mv >= ATOM_BATTERY_MIN_MV) ? battery_level_bits(mv/1000.0) : 0;
+}
+#else
 void power_monitor() {
     power_status_t power_status;
 
@@ -274,11 +292,7 @@ void power_monitor() {
             break;        
     }
 
-    float voltage = power_status.battery_voltage/1000.0;
-    if(voltage > 3.95) battery_mask = battery_mask | BATTERY_VOLTAGE_4; else 
-    if(voltage > 3.80) battery_mask = battery_mask | BATTERY_VOLTAGE_3; else 
-    if(voltage > 3.60) battery_mask = battery_mask | BATTERY_VOLTAGE_2; else 
-    if(voltage > 3.30) battery_mask = battery_mask | BATTERY_VOLTAGE_1;
+    battery_mask = battery_mask | battery_level_bits(power_status.battery_voltage/1000.0);
 }
 
 #endif
@@ -318,6 +332,14 @@ void app_main() {
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 #ifdef ATOM_VOICES3R
     printf("M5Stack Atom VoiceS3R\n");
+    if(atom_battery_init() == ESP_OK) {
+        printf("battery %d mV\n", atom_battery_read_mv());
+        atom_battery_monitor();
+        TimerHandle_t battery_timer = xTimerCreate("battery", pdMS_TO_TICKS(5000), pdTRUE, NULL, atom_battery_monitor);
+        xTimerStart(battery_timer, 0);
+    } else {
+        printf("battery ADC init failed\n");
+    }
 #else
     // TODO -- this does not properly detect DEVBOARD anymore, not a big deal for now, doesn't impact anything
     // if power init fails, we don't have blinkinlabs board, set board level to 0
