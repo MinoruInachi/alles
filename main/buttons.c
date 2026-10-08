@@ -16,8 +16,8 @@ extern uint8_t status;
 extern uint8_t board_level;
 
 
-#ifdef ATOM_VOICES3R
-// The Atom VoiceS3R has a single user button (active low).
+#ifdef ATOM
+// The Atoms have a single user button (active low).
 // Short press cycles the volume, holding it for ATOM_LONG_PRESS_MS resets the wifi config.
 #define ATOM_BUTTON_POLL_MS 20
 #define ATOM_LONG_PRESS_MS 3000
@@ -48,7 +48,11 @@ esp_err_t buttons_init() {
         .mode = GPIO_MODE_INPUT,
         .pin_bit_mask = (1ULL << ATOM_BUTTON_USER),
         .pull_down_en = 0,
+#ifdef ATOM_VOICE
+        .pull_up_en = 0,  // GPIO39 has no internal pull-up, the board has one
+#else
         .pull_up_en = 1,
+#endif
     };
     esp_err_t ret = gpio_config(&in_conf);
     if(ret != ESP_OK)

@@ -218,6 +218,18 @@ $ idf.py -p /dev/cu.usbmodemXXXX flash monitor
 
 Atom にはボタンが 1 つあります。短押しで音量が 1 段階上がり（最大の次は最小に戻ります）、3 秒長押しすると保存済みの WiFi 設定を消去して `alles-synth-X` の設定用ネットワークで再起動します。スピーカーが 1 つなので、出力はモノラルにミックスされます。バッテリーも電源スイッチもないため、WiFi に接続できないときは電源を切る代わりに 2 分後に WiFi 待ちのチャイムを止めます。また、OTA アップデート（ESP32 用のイメージを取得します）は使いません。
 
+## M5Stack Atom Voice
+
+Alles は [M5Stack Atom Voice](https://docs.m5stack.com/ja/atom/Atom_Voice)（ESP32-PICO-D4、NS4168 I2S アンプ、0.8W スピーカー）でも動きます。ESP-IDF 5.3 以降でビルドして書き込みます。
+
+```bash
+$ idf.py set-target esp32   # 初回のみ必要です。sdkconfig.defaults と sdkconfig.defaults.esp32 が読み込まれます
+$ idf.py build
+$ idf.py -p /dev/cu.usbserial-XXXX -b 115200 flash monitor
+```
+
+Atom の USB シリアルは速い通信速度では途切れるため、115200bps で書き込んでください。ボタン、モノラル出力、WiFi まわりの動作は Atom VoiceS3R と同じです。Atom Voice には PSRAM がないため、AMY のタスクスタック、デルタプール、MIDI SysEx バッファを小さくしてビルドし、オシレーターは 120 個ではなく 64 個（使うときに確保されます）にしています。WiFi 接続後、オシレーター用に約 90KB の RAM が残ります。
+
 
 ## 謝辞
 

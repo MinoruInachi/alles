@@ -219,6 +219,18 @@ $ idf.py -p /dev/cu.usbmodemXXXX flash monitor
 
 The Atom has one button: a short press steps the volume up (wrapping back to the quietest level), and holding it for 3 seconds clears the saved WiFi and restarts into the `alles-synth-X` setup network. Output is mixed down to mono for its single speaker. It has no battery or power switch, so it stops the WiFi chime after 2 minutes instead of turning off, and the OTA upgrade (which fetches the ESP32 image) is not used.
 
+## M5Stack Atom Voice
+
+Alles also runs on the [M5Stack Atom Voice](https://docs.m5stack.com/en/atom/Atom_Voice) (ESP32-PICO-D4, NS4168 I2S amp, 0.8W speaker). Build and flash it with ESP-IDF 5.3 or later:
+
+```bash
+$ idf.py set-target esp32   # only needed once, picks up sdkconfig.defaults and sdkconfig.defaults.esp32
+$ idf.py build
+$ idf.py -p /dev/cu.usbserial-XXXX -b 115200 flash monitor
+```
+
+Flash at 115200 baud, the Atom's USB serial drops out at faster rates. The button, mono output and WiFi behavior are the same as on the Atom VoiceS3R. The Atom Voice has no PSRAM, so AMY is built with smaller task stacks, delta pool and MIDI sysex buffer, and gets 64 oscillators (allocated as they're used) instead of 120. That leaves about 90KB of RAM for oscillators once WiFi is up.
+
 
 ## THANK YOU TO
 

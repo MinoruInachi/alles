@@ -42,6 +42,15 @@
 esp_err_t codec_init();
 esp_err_t atom_battery_init();
 int atom_battery_read_mv();
+#elif CONFIG_ALLES_ATOM_VOICE
+// M5Stack Atom Voice: NS4168 I2S amp straight off the ESP32-PICO-D4, one user button
+#define ATOM_VOICE
+#define ATOM_BUTTON_USER 39  // input only, pulled up on the board
+#define ATOM_I2S_BCLK 19
+#define ATOM_I2S_LRCLK 33
+#define ATOM_I2S_DOUT 22
+#define ESP_INTR_FLAG_DEFAULT 0
+esp_err_t ns4168_init();
 #else
 // Pins & buttons
 #define BUTTON_WAKEUP 34
@@ -61,6 +70,11 @@ int atom_battery_read_mv();
 #define CPU_MONITOR_0 13
 #define CPU_MONITOR_1 12
 #define CPU_MONITOR_2 15
+#endif
+
+#if defined(ATOM_VOICES3R) || defined(ATOM_VOICE)
+// What the two Atoms share: one speaker, one button, no power switch
+#define ATOM
 #endif
 
 void wifi_reconfigure();
@@ -87,6 +101,7 @@ void delay_ms(uint32_t ms);
 #define ALLES_BOARD_V2 2
 #define ALLES_DESKTOP 3
 #define ALLES_ATOM_VOICES3R 4
+#define ALLES_ATOM_VOICE 5
 #define BATTERY_STATE_CHARGING 0x01
 #define BATTERY_STATE_CHARGED 0x02
 #define BATTERY_STATE_DISCHARGING 0x04

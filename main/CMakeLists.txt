@@ -31,6 +31,9 @@ set(ALLES_SRCS
 if(IDF_TARGET STREQUAL "esp32s3")
 	# M5Stack Atom VoiceS3R
 	list(APPEND ALLES_SRCS codec_es8311.c atom_battery.c)
+elseif(CONFIG_ALLES_ATOM_VOICE)
+	# M5Stack Atom Voice
+	list(APPEND ALLES_SRCS ns4168.c)
 else()
 	list(APPEND ALLES_SRCS power.c)
 endif()
@@ -42,6 +45,17 @@ target_compile_options(${COMPONENT_LIB} PRIVATE
 	-DALLES
 	-Wno-uninitialized
 )
+
+if(CONFIG_ALLES_ATOM_VOICE)
+	# No PSRAM, so size AMY for internal RAM: its task stacks (measured peaks ~1KB render, ~2.5KB fill),
+	# the delta pool (grows in blocks on demand) and the MIDI sysex buffer (no MIDI on the Atom)
+	target_compile_definitions(${COMPONENT_LIB} PRIVATE
+		AMY_RENDER_TASK_STACK_SIZE=4096
+		AMY_FILL_BUFFER_TASK_STACK_SIZE=6144
+		DELTA_BLOCK_SIZE=512
+		MAX_SYSEX_BYTES=256
+	)
+endif()
 
 set_source_files_properties(alles_esp32.c alles.c
     PROPERTIES COMPILE_FLAGS

@@ -1,0 +1,11 @@
+menu "Alles"
+
+config ALLES_ATOM_VOICE
+    bool "Build for the M5Stack Atom Voice"
+    depends on IDF_TARGET_ESP32
+    default n
+    help
+        Build for the M5Stack Atom Voice (ESP32-PICO-D4, NS4168 I2S amp, one button)
+        instead of the Alles boards. The ESP32-S3 target always builds for the Atom VoiceS3R.
+
+endmenu

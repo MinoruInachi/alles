@@ -1,4 +1,4 @@
 [submodule "amy"]
 	path = amy
 	url = https://github.com/MinoruInachi/amy
-	branch = dev_alles_AtomVoiceS3R
+	branch = dev_alles_AtomVoice

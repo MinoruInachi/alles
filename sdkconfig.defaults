@@ -1,20 +1,5 @@
-# Alles for M5Stack Atom VoiceS3R (ESP32-S3-PICO-1-N8R8)
-CONFIG_IDF_TARGET="esp32s3"
-
-# Flash: 8MB QIO, PSRAM: 8MB Octal
-CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
-CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
-CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
-CONFIG_SPIRAM=y
-CONFIG_SPIRAM_MODE_OCT=y
-CONFIG_SPIRAM_SPEED_80M=y
-
-CONFIG_PARTITION_TABLE_CUSTOM=y
-CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="alles_partitions.csv"
-CONFIG_PARTITION_TABLE_FILENAME="alles_partitions.csv"
-
-# Console over the native USB Serial/JTAG port
-CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+# Alles for the M5Stack Atoms, settings shared by both targets.
+# idf.py also reads sdkconfig.defaults.<target>: esp32 builds the Atom Voice, esp32s3 the Atom VoiceS3R.
 
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
 CONFIG_COMPILER_OPTIMIZATION_PERF=y

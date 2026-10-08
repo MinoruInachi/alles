@@ -22,6 +22,7 @@
 #include "esp_log.h"
 #include "esp_err.h"
 #include "esp_sleep.h"
+#include "esp_heap_caps.h"
 #include "driver/uart.h"
 #include "nvs_flash.h"
 #include "lwip/netdb.h"
@@ -52,8 +53,10 @@ void delay_ms(uint32_t ms) {
     vTaskDelay(ms / portTICK_PERIOD_MS);
 }
 
-#ifdef ATOM_VOICES3R
+#if defined(ATOM_VOICES3R)
 uint8_t board_level = ALLES_ATOM_VOICES3R;
+#elif defined(ATOM_VOICE)
+uint8_t board_level = ALLES_ATOM_VOICE;
 #else
 uint8_t board_level = ALLES_BOARD_V2;
 #endif
@@ -78,6 +81,7 @@ TaskHandle_t upgradeTask = NULL;
 #define ALLES_PARSE_TASK_STACK_SIZE (8 * 1024)
 #define ALLES_RECEIVE_TASK_STACK_SIZE (4 * 1024)
 #define ALLES_MAX_OSCS 120
+#define ATOM_VOICE_MAX_OSCS 64
 
 
 // Battery status for V2 board. If no v2 board, will stay at 0
@@ -95,12 +99,13 @@ void esp_parse_task() {
     }
 }
 
-#ifdef ATOM_VOICES3R
+#ifdef ATOM
 // AMY leaves a lot of headroom (a single full velocity sine peaks around -23dBFS), which is too quiet
 // on the Atom's small speaker. Boost each bus here, before AMY's volume and output soft clipping.
 #define ATOM_OUTPUT_GAIN_SHIFT 2  // x4, +12dB
 
-// The Atom VoiceS3R has one speaker and the ES8311 only plays the left channel, so mix each bus down to mono
+// The Atoms have one speaker and play only one channel (the ES8311 plays the left one, the NS4168 picks one with
+// its CTRL pin), so mix each bus down to mono
 void mono_bus_hook(uint16_t bus, SAMPLE *buf, uint16_t len) {
     SAMPLE *left = buf;
     SAMPLE *right = buf + len;
@@ -135,6 +140,17 @@ amy_err_t esp_amy_init() {
     amy_config.ram_caps_sysex = MALLOC_CAP_SPIRAM;
     amy_config.ram_caps_block = MALLOC_CAP_INTERNAL;
     amy_config.ram_caps_fbl = MALLOC_CAP_INTERNAL;
+#elif defined(ATOM_VOICE)
+    amy_config.i2s_bclk = ATOM_I2S_BCLK;
+    amy_config.i2s_lrc = ATOM_I2S_LRCLK;
+    amy_config.i2s_dout = ATOM_I2S_DOUT;
+    // The PDM mic isn't used
+    amy_config.amy_external_bus_postprocess_hook = mono_bus_hook;
+    // No PSRAM, so leave room in internal RAM for WiFi: fewer oscs (~730 bytes each, allocated on first use),
+    // one bus (each one costs ~6KB of render buffers per core) and fewer sequencer slots
+    amy_config.max_oscs = ATOM_VOICE_MAX_OSCS;
+    amy_config.max_buses = 1;
+    amy_config.max_sequencer_tags = 64;
 #else
     amy_config.i2s_bclk = CONFIG_I2S_BCLK;
     amy_config.i2s_lrc = CONFIG_I2S_LRCLK;
@@ -257,7 +273,7 @@ void atom_battery_monitor() {
     int mv = atom_battery_read_mv();
     battery_mask = (mv >= ATOM_BATTERY_MIN_MV && mv <= ATOM_BATTERY_MAX_MV) ? battery_level_bits(mv/1000.0) : 0;
 }
-#else
+#elif !defined(ATOM_VOICE)
 void power_monitor() {
     power_status_t power_status;
 
@@ -302,8 +318,8 @@ void power_monitor() {
 void turn_off() {
     debleep();
     delay_ms(500);
-#ifdef ATOM_VOICES3R
-    // No power switch and the user button (GPIO41) can't wake from deep sleep, so just reboot
+#ifdef ATOM
+    // No power switch, and the user button can't wake the S3R from deep sleep, so just reboot
     esp_restart();
 #else
     // TODO: Where did these come from? JTAG?
@@ -332,7 +348,9 @@ void app_main() {
 
     for(uint8_t i=0;i<MAX_TASKS;i++) last_task_counters[i] = 0;
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-#ifdef ATOM_VOICES3R
+#if defined(ATOM_VOICE)
+    printf("M5Stack Atom Voice\n");
+#elif defined(ATOM_VOICES3R)
     printf("M5Stack Atom VoiceS3R\n");
     if(atom_battery_init() == ESP_OK) {
         printf("battery %d mV\n", atom_battery_read_mv());
@@ -379,8 +397,10 @@ void app_main() {
 
     check_init(&sync_init, "sync"); 
     esp_amy_init();
-#ifdef ATOM_VOICES3R
+#if defined(ATOM_VOICES3R)
     if(codec_init() != ESP_OK) printf("codec init failed\n");
+#elif defined(ATOM_VOICE)
+    if(ns4168_init() != ESP_OK) printf("NS4168 I2S setup failed\n");
 #endif
     if(buttons_init() != ESP_OK) printf("buttons init failed\n"); // only one button for the protoboard and the Atom, 4 for the blinkinlabs
 
@@ -397,14 +417,14 @@ void app_main() {
     // safe covered with a pillow to get their batteries to die. 
 
     //So now they shut off after MAX_WIFI_WAIT_S if they can't connect.
-    // The Atom VoiceS3R runs off USB power and can't turn itself off, so it just stops chiming and keeps waiting.
+    // The Atoms run off USB power and can't turn themselves off, so they just stop chiming and keep waiting.
     uint32_t start_time = amy_sysclock();
     delay_ms(250);
     //heap_caps_print_heap_info(MALLOC_CAP_INTERNAL);
 
     while((!(status & WIFI_MANAGER_OK) && (status & RUNNING) )) {
         uint8_t timed_out = (amy_sysclock() - start_time > (MAX_WIFI_WAIT_S*1000));
-#ifdef ATOM_VOICES3R
+#ifdef ATOM
         if(!timed_out) wifi_tone();
 #else
         if(timed_out) turn_off();
@@ -418,6 +438,11 @@ void app_main() {
 
     // We check for RUNNING as someone could have pressed power already
     if(!(status & RUNNING)) turn_off();
+
+#ifdef ATOM_VOICE
+    // No PSRAM, so this is what's left for oscs
+    printf("free internal RAM with WiFi up: %u bytes\n", (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+#endif
 
     // was + held down right now? if so check for updates
     if(status & UPDATE) {
