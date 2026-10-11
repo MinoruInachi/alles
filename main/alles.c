@@ -42,7 +42,7 @@ void update_map(int16_t client, uint8_t ipv4, int64_t time) {
     alive = 0;
     for(uint8_t i=0;i<255;i++) {
         if(clocks[i] > 0) { 
-            if(my_sysclock < (ping_times[i] + (PING_TIME_MS * 2))) { // alive
+            if(my_sysclock < (ping_times[i] + ALIVE_TIMEOUT_MS)) { // alive
                 //printf("[%d %d] Checking my time %lld against ipv4 %d's of %lld, client_id now %d ping_time[%d] = %lld\n", 
                 //    ipv4_quartet, client_id, my_sysclock, i, clocks[i], my_new_client_id, i, ping_times[i]);
                 alive++;
