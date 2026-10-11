@@ -3,6 +3,7 @@ sys.path.append('amy')
 import amy
 from amy import *
 ALLES_LATENCY_MS = 1000
+PING_TIME_MS = 10000  # how often the synths ping each other (PING_TIME_MS in main/alles.h)
 UDP_PORT = 9294
 sock = 0
 
@@ -143,7 +144,7 @@ def sync(count=10, delay_ms=100):
         if((i-delay_period) > count):
             break
     # Compute average rtt in ms and reliability (number of rt packets we got)
-    for ipv4 in rtt.keys():
+    for ipv4 in sorted(rtt.keys()):
         hit = 0
         total_rtt_ms = 0
         for i in range(count):
@@ -151,13 +152,36 @@ def sync(count=10, delay_ms=100):
             if ms is not None:
                 total_rtt_ms = total_rtt_ms + ms
                 hit = hit + 1
-        clients[client_map[ipv4]] = {}
-        clients[client_map[ipv4]]["reliability"] = float(hit)/float(count)
-        clients[client_map[ipv4]]["avg_rtt"] = float(total_rtt_ms) / float(hit) # todo compute std.dev
-        clients[client_map[ipv4]]["ipv4"] = ipv4
-        clients[client_map[ipv4]]["battery"] = decode_battery_mask(int(battery_map[ipv4]))
+        client = {}
+        client["reliability"] = float(hit)/float(count)
+        client["avg_rtt"] = float(total_rtt_ms) / float(hit) if hit else None # todo compute std.dev
+        client["ipv4"] = ipv4
+        client["battery"] = decode_battery_mask(int(battery_map[ipv4]))
+        # Each synth works out its own client_id from the pings it hears. When two disagree about who is
+        # alive they can claim the same one; keep the first here and list the others under "duplicates"
+        if client_map[ipv4] in clients:
+            clients[client_map[ipv4]].setdefault("duplicates", []).append(ipv4)
+        else:
+            clients[client_map[ipv4]] = client
+    warn_client_ids(clients)
     # Return this as a map for future use
     return clients
+
+
+def warn_client_ids(clients):
+    # Messages for client n go to whichever synth claims n (wrapped by the synth's own count of synths
+    # alive), so two synths with the same id play the same part, and a part with no synth isn't played
+    for client_id, v in sorted(clients.items()):
+        if "duplicates" in v:
+            print("Warning: client %d is claimed by %s. Those synths disagree about who is alive, as one of them "
+                  "isn't hearing the others' pings. Sync again in %d seconds; if it stays, check that synth's WiFi "
+                  "or power cycle it." % (client_id, ", ".join(".%d" % ip for ip in [v["ipv4"]] + v["duplicates"]),
+                                         3 * PING_TIME_MS // 1000))
+    total = sum(1 + len(v.get("duplicates", [])) for v in clients.values())
+    missing = sorted(set(range(total)) - set(clients.keys()))
+    if missing:
+        print("Warning: no synth answers as client %s, so messages for it won't play."
+              % ", ".join(str(c) for c in missing))
 
 
 

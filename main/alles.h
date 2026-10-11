@@ -79,6 +79,9 @@ void delay_ms(uint32_t ms);
 #define MULTICAST_TTL 255     // hops multicast packets can take
 #define MULTICAST_IPV4_ADDR "232.10.11.12"
 #define PING_TIME_MS 10000   // ms between boards pinging each other
+// A synth counts as gone after this long without hearing from it. Three ping periods, so one lost
+// multicast ping doesn't drop it (and shift everyone's client_id) just before its next ping arrives.
+#define ALIVE_TIMEOUT_MS (PING_TIME_MS * 3)
 #define MAX_RECEIVE_LEN 4096
 
 // enums
